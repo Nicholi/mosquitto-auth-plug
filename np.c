@@ -99,7 +99,7 @@ int main(int argc, char **argv)
 		saltlen = SALTLEN;
 		saltbytes = malloc(saltlen);
 		rc = RAND_bytes(saltbytes, saltlen);
-		if (rc != saltlen) {
+		if (rc == 0) {
 			fprintf(stderr, "Cannot get random bytes for salt!\n");
 			return 2;
 		}

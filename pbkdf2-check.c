@@ -33,8 +33,7 @@
 #include <openssl/evp.h>
 #include "base64.h"
 
-#define KEY_LENGTH      32
-#define SALT_BUFFER     128
+#define BUFFER          128
 #define SEPARATOR       "$"
 #define TRUE	(1)
 #define FALSE	(0)
@@ -84,10 +83,11 @@ static int detoken(char *pbkstr, char **sha, int *iter, char **salt, char **key)
 int pbkdf2_check(char *password, char *hash)
 {
         static char *sha, *salt, *h_pw;
-        int iterations, saltlen, blen;
+        int iterations, saltlen, klen, blen;
 	char *b64;
-	unsigned char key[KEY_LENGTH];
-	unsigned char saltbytes[SALT_BUFFER];
+	unsigned char *key;
+	unsigned char hashbytes[BUFFER];
+	unsigned char saltbytes[BUFFER];
 	int match = FALSE;
 	const EVP_MD *evpmd;
 
@@ -110,12 +110,15 @@ int pbkdf2_check(char *password, char *hash)
 		evpmd = EVP_sha512();
 	}
 
+	klen = base64_decode(h_pw, hashbytes);
+	key = malloc(klen);
+
 	PKCS5_PBKDF2_HMAC(password, strlen(password),
                 saltbytes, saltlen,
 		iterations,
-		evpmd, KEY_LENGTH, key);
+		evpmd, klen, key);
 
-	blen = base64_encode(key, KEY_LENGTH, &b64);
+	blen = base64_encode(key, klen, &b64);
 	if (blen > 0) {
 		int i, diff = 0, hlen = strlen(h_pw);
 #ifdef PWDEBUG
