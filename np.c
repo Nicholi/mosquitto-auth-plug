@@ -36,34 +36,40 @@
 #include <openssl/rand.h>
 #include "base64.h"
 
-#define KEY_LENGTH      24
+#define KEY_LENGTH      32
 #define SEPARATOR       "$"
-#define SALTLEN 12
+#define SALTLEN         16
+#define SALT_BUFFER     128
 
-#define USAGE() fprintf(stderr, "Usage: %s [-i iterations] [-p password]\n", progname)
+#define USAGE() fprintf(stderr, "Usage: %s [-i iterations] [-p password] [-s salt]\n", progname)
 
 int main(int argc, char **argv)
 {
-        int iterations = 901, rc, saltlen, blen;
-	unsigned char	saltbytes[SALTLEN];
+	int iterations = 128000, rc, saltlen, blen;
+	unsigned char	*saltbytes;
 	char *salt, *b64;
-	unsigned char key[128];
+	unsigned char key[KEY_LENGTH];
 	char *pw1, *pw2, *password;
 	char *progname = argv[0];
 	int c;
-	int prompt;
+	int prompt, salt_in;
 
 	prompt = 1;
+	salt_in = 0;
 
-	while ((c = getopt(argc, argv, "ip:")) != EOF) {
+	while ((c = getopt(argc, argv, "i:p:s:")) != EOF) {
 		switch (c) {
 			case 'i':
 				iterations = atoi(optarg);
 				break;
 			case 'p':
 				pw1 = strdup(optarg);
-				pw2 = strdup(optarg);	
+				pw2 = strdup(optarg);
 				prompt = 0;
+				break;
+			case 's':
+				salt = strdup(optarg);
+				salt_in = 1;
 				break;
 			default:
 				exit(USAGE());
@@ -89,19 +95,26 @@ int main(int argc, char **argv)
 
 	password = pw1;
 
-	rc = RAND_bytes(saltbytes, SALTLEN);
-	if (rc == 0) {
-		fprintf(stderr, "Cannot get random bytes for salt!\n");
-		return 2;
+	if ( salt_in == 0 ) {
+		saltlen = SALTLEN;
+		saltbytes = malloc(saltlen);
+		rc = RAND_bytes(saltbytes, saltlen);
+		if (rc != saltlen) {
+			fprintf(stderr, "Cannot get random bytes for salt!\n");
+			return 2;
+		}
+
+		base64_encode(saltbytes, saltlen, &salt);
+	} else {
+		saltbytes = malloc(SALT_BUFFER);
+		saltlen = base64_decode(salt, saltbytes);
 	}
 
-	base64_encode(saltbytes, SALTLEN, &salt);
-	saltlen = strlen(salt);
-
 	PKCS5_PBKDF2_HMAC(password, strlen(password),
-                (unsigned char *)salt, saltlen,
+                saltbytes, saltlen,
 		iterations,
-		EVP_sha256(), KEY_LENGTH, key);
+		EVP_sha256(),
+		KEY_LENGTH, key);
 
 	blen = base64_encode(key, KEY_LENGTH, &b64);
 	if (blen > 0) {

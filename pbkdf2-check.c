@@ -33,11 +33,13 @@
 #include <openssl/evp.h>
 #include "base64.h"
 
-#define KEY_LENGTH      24
+#define KEY_LENGTH      32
+#define SALT_BUFFER     128
 #define SEPARATOR       "$"
 #define TRUE	(1)
 #define FALSE	(0)
 
+#define USAGE() fprintf(stderr, "Usage: %s -p password -h hash\n", progname)
 
 /*
  * Split PBKDF2$... string into their components. The caller must free()
@@ -84,7 +86,8 @@ int pbkdf2_check(char *password, char *hash)
         static char *sha, *salt, *h_pw;
         int iterations, saltlen, blen;
 	char *b64;
-	unsigned char key[128];
+	unsigned char key[KEY_LENGTH];
+	unsigned char saltbytes[SALT_BUFFER];
 	int match = FALSE;
 	const EVP_MD *evpmd;
 
@@ -98,7 +101,7 @@ int pbkdf2_check(char *password, char *hash)
 	fprintf(stderr, "h_pw       =[%s]\n", h_pw);
 #endif
 
-	saltlen = strlen((char *)salt);
+	saltlen = base64_decode(salt, saltbytes);
 
 	evpmd = EVP_sha256();
 	if (strcmp(sha, "sha1") == 0) {
@@ -108,7 +111,7 @@ int pbkdf2_check(char *password, char *hash)
 	}
 
 	PKCS5_PBKDF2_HMAC(password, strlen(password),
-                (unsigned char *)salt, saltlen,
+                saltbytes, saltlen,
 		iterations,
 		evpmd, KEY_LENGTH, key);
 
@@ -139,20 +142,43 @@ int pbkdf2_check(char *password, char *hash)
 }
 
 #if TEST
-int main()
+#include <getopt.h>
+int main(int argc, char **argv)
 {
-        // char password[] = "hello";
-	// char PB1[] = "PBKDF2$sha256$10000$eytf9sEo8EprP9P3$2eO6tROHiqI3bm+gg+vpmWooWMpz1zji";
-        char password[] = "supersecret";
-	char PB1[] = "PBKDF2$sha256$10000$YEbSTt8FaMRDq/ib$Kt97+sMCYg00mqMOBAYinqZlnxX8HqHk";
-	// char PB1[] = "PBKDF2$sha1$10000$XWfyPLeC9gsD6SbI$HOnjU4Ux7RpeBHdqYxpIGH1R5qCCtNA1";
-	// char PB1[] = "PBKDF2$sha512$10000$v/aaCgBZ+VZN5L8n$BpgjSTyb4weVxr9cA2mvQ+jaCyaAPeYe";
-	int match;
+	char *progname = argv[0];
+	char *password, *hash;
+	int pflag = 0,
+            hflag = 0;
+	int c, match;
 
-	printf("Checking password [%s] for %s\n", password, PB1);
+        while ((c = getopt(argc, argv, "p:h:")) != EOF) {
+                switch (c) {
+                        case 'p':
+                                password = strdup(optarg);
+				pflag = 1;
+                                break;
+                        case 'h':
+                                hash = strdup(optarg);
+				hflag = 1;
+                                break;
 
-	match = pbkdf2_check(password, PB1);
+                        default:
+                                exit(USAGE());
+                }
+        }
+
+        argc -= optind - 1;
+        argv += optind - 1;
+
+        if (pflag != 1 && hflag != 1) {
+                exit(USAGE());
+        }
+
+	printf("Checking password [%s] for %s\n", password, hash);
+
+	match = pbkdf2_check(password, hash);
 	printf("match == %d\n", match);
+
 	return match;
 }
 #endif

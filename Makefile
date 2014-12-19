@@ -125,13 +125,16 @@ be-http.o: be-http.c be-http.h Makefile backends.h
 np: np.c base64.o
 	$(CC) $(CFLAGS) $^ -o $@ $(OSSLIBS)
 
+pbkdf2-check: pbkdf2-check.c base64.o
+	$(CC) $(CFLAGS) -DTEST $^ -o $@ $(OSSLIBS)
+
 $(CDBLIB):
 	(cd $(CDBDIR); make libcdb.a cdb )
 
 pwdb.cdb: pwdb.in
 	$(CDB) -c -m  pwdb.cdb pwdb.in
 clean :
-	rm -f *.o *.so np
+	rm -f *.o *.so np pbkdf2-check
 	(cd contrib/tinycdb-0.78; make realclean )
 
 config.mk:
