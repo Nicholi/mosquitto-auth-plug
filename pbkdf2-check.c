@@ -140,6 +140,7 @@ int pbkdf2_check(char *password, char *hash)
 	free(sha);
 	free(salt);
 	free(h_pw);
+	free(key);
 
 	return match;
 }
